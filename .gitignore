@@ -1,0 +1,98 @@
+# WiFi Cracking Suite .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Capture files and temporary data
+*.cap
+*.pcap
+*.pcapng
+*.csv
+*.kismet.*
+*.netxml
+*.hccapx
+*.16800
+scan_*
+handshake_*
+pmkid_*
+hash_*
+temp_*
+capture_*
+
+# Configuration files (sensitive)
+config.json
+wifi_cracker_config.json
+profiles/*.json
+
+# Logs
+*.log
+attack_logs/
+session_logs/
+
+# Wordlists (can be large)
+wordlists/
+*.txt
+!requirements.txt
+!README.md
+
+# Hashcat
+hashcat.potfile
+hashcat.restore
+
+# Temporary directories
+tmp/
+temp/
+cache/
+
+# Backup files
+*.bak
+*.backup
+*_backup_*
+
+# Compiled tools (if any)
+bin/
+obj/
