@@ -41,6 +41,11 @@ A comprehensive wireless network security testing toolkit built in Python. This 
 - **PMKID Attacks**: Client-less PMKID capture and cracking
 - **Multi-interface Support**: Simultaneous attacks on multiple interfaces
 
+### 🧠 Intelligence & Reporting (New)
+- **Target Intelligence Engine**: Automatically scores discovered networks by encryption posture, signal quality, and client activity
+- **Smart Prioritization**: Ranks top networks to focus assessment time on the highest-value targets
+- **Session Report Export**: Generates portable JSON operation reports with ranked targets and environment metadata
+
 ### 🛠️ Utilities & Tools
 - **Wordlist Management**: Custom wordlist creation and management
 - **Capture File Processing**: Convert, merge, and analyze capture files

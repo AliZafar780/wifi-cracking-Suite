@@ -21,6 +21,7 @@ from packet_analyzer import PacketCapture, PacketAnalyzer
 from password_cracker import PasswordCracker, WordlistManager
 from attack_tools import AttackManager
 from config_manager import ConfigManager
+from intelligence import NetworkIntelligenceEngine, SessionReportBuilder
 
 class WiFiCrackingSuite:
     def __init__(self):
@@ -35,6 +36,8 @@ class WiFiCrackingSuite:
         self.cracker = PasswordCracker()
         self.attacks = AttackManager()
         self.wordlists = WordlistManager()
+        self.intelligence = NetworkIntelligenceEngine()
+        self.report_builder = SessionReportBuilder()
 
         self.current_interface = None
         self.monitor_mode = False
@@ -235,6 +238,8 @@ class WiFiCrackingSuite:
             ("Generate Wordlist", self.generate_wordlist),
             ("Convert Capture", self.convert_capture),
             ("Analyze Traffic", self.analyze_traffic),
+            ("Rank Targets", self.rank_targets),
+            ("Export Session Report", self.export_session_report),
             ("System Status", self.check_system),
             ("Clean Temp Files", self.clean_temp)
         ]
@@ -330,7 +335,7 @@ class WiFiCrackingSuite:
             )))
 
         def on_progress(progress):
-            pass
+            self.root.after(0, lambda: self.status_var.set(f"Scanning... {int(progress)}%"))
 
         self.scanner.on_network_found = on_network_found
         self.scanner.on_scan_progress = on_progress
@@ -387,7 +392,20 @@ class WiFiCrackingSuite:
             self.details_text.insert(1.0, details)
 
     def sort_networks(self, col):
-        pass
+        rows = [(self.network_tree.set(item, col), item) for item in self.network_tree.get_children('')]
+
+        def normalize(value):
+            if col in {"Signal", "Clients", "Channel"}:
+                try:
+                    return int(str(value).replace("dBm", "").strip())
+                except ValueError:
+                    return -999
+            return str(value).lower()
+
+        rows.sort(key=lambda row: normalize(row[0]), reverse=True)
+
+        for index, (_, item) in enumerate(rows):
+            self.network_tree.move(item, '', index)
 
     def start_attack(self):
         attack_type = self.attack_var.get()
@@ -582,6 +600,34 @@ class WiFiCrackingSuite:
 
     def convert_capture(self):
         self.tools_output.insert(tk.END, "Capture conversion - select file to convert\n")
+
+    def rank_targets(self):
+        networks = self.scanner.get_networks()
+        if not networks:
+            self.tools_output.insert(tk.END, "No networks available to rank. Run a scan first.\n")
+            return
+
+        ranked = self.intelligence.rank_networks(networks, top_n=10)
+        self.tools_output.insert(tk.END, "\nTop ranked targets (intelligence mode):\n")
+        for idx, item in enumerate(ranked, start=1):
+            self.tools_output.insert(
+                tk.END,
+                f"{idx:02d}. {item.essid} ({item.bssid}) - score {item.score}/100 [{item.reason}]\n"
+            )
+
+    def export_session_report(self):
+        networks = self.scanner.get_networks()
+        system_info = {
+            'os': f"{platform.system()} {platform.release()}",
+            'python': sys.version.split()[0],
+            'interface': self.interface_combo.get() or self.default_interface.get() or 'unknown'
+        }
+        report_path = self.report_builder.build_report(
+            networks=networks,
+            system_info=system_info,
+            notes="Generated from GUI tools tab"
+        )
+        self.tools_output.insert(tk.END, f"Session report exported: {report_path}\n")
 
     def analyze_traffic(self):
         capture_file = self.capture_file.get()
