@@ -328,6 +328,9 @@ class NetworkScanner:
     def _linux_scan(self, interface: str, duration: int,
                    channels: Optional[List[int]] = None):
         """Linux-specific scanning using airodump-ng"""
+        process = None
+        temp_files = ['scan_temp-01.csv', 'scan_temp-01.cap',
+                      'scan_temp-01.kismet.csv', 'scan_temp-01.kismet.netxml']
         try:
             # Check if airodump-ng is available
             result = subprocess.run(['which', 'airodump-ng'], capture_output=True, timeout=5)
@@ -366,17 +369,19 @@ class NetworkScanner:
             # Final parse
             self._parse_airodump_csv('scan_temp-01.csv')
 
-            # Terminate process
-            if process.poll() is None:
-                process.terminate()
-                process.wait(timeout=5)
-
-            # Clean up temp files
-            self._cleanup_temp_files(['scan_temp-01.csv', 'scan_temp-01.cap',
-                                    'scan_temp-01.kismet.csv', 'scan_temp-01.kismet.netxml'])
-
         except Exception as e:
             print(f"Linux scan error: {e}")
+        finally:
+            # Terminate process if still running
+            if process is not None and process.poll() is None:
+                try:
+                    process.terminate()
+                    process.wait(timeout=5)
+                except Exception as term_err:
+                    print(f"Error terminating airodump-ng process: {term_err}")
+
+            # Clean up temp files
+            self._cleanup_temp_files(temp_files)
 
     def _iw_scan(self, interface: str, duration: int, channels: Optional[List[int]] = None):
         """Scan using iw command"""

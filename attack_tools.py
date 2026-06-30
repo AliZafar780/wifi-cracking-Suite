@@ -277,7 +277,7 @@ ignore_broadcast_ssid=0
                 f.write(hostapd_config)
 
             # Create dnsmasq configuration for DHCP
-            dnsmasq_config = """interface=wlan0
+            dnsmasq_config = f"""interface={interface}
 dhcp-range=192.168.1.10,192.168.1.100,255.255.255.0,12h
 dhcp-option=3,192.168.1.1
 dhcp-option=6,192.168.1.1
@@ -801,17 +801,26 @@ def check_attack_capabilities() -> Dict[str, bool]:
 
 
 def cleanup_attack_files():
-    """Clean up temporary attack files"""
+    """Clean up temporary attack files using proper glob pattern matching"""
+    import glob as glob_module
+
     patterns = ['*.cap', '*.pcapng', '*.hccapx', '*.16800', 'pmkid_*.pcapng',
                'handshake_*.cap', 'scan_*.csv', 'hostapd_*.conf', 'dnsmasq_*.conf']
 
+    cleaned_count = 0
     for pattern in patterns:
         try:
-            # Simple cleanup - in real implementation, use glob
-            if os.path.exists(pattern.replace('*', 'temp')):
-                os.remove(pattern.replace('*', 'temp'))
-        except:
-            pass
+            for file_path in glob_module.glob(pattern):
+                try:
+                    os.remove(file_path)
+                    cleaned_count += 1
+                except Exception as e:
+                    print(f"Warning: Could not remove {file_path}: {e}")
+        except Exception as e:
+            print(f"Warning: Error cleaning pattern '{pattern}': {e}")
+
+    if cleaned_count > 0:
+        print(f"Cleaned up {cleaned_count} temporary attack file(s)")
 
 
 if __name__ == "__main__":

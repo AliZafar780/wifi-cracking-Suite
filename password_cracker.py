@@ -87,6 +87,26 @@ class PasswordCracker:
 
         return result
 
+    def _verify_tool_available(self, tool_name):
+        """Verify that a required tool exists in PATH"""
+        try:
+            result = subprocess.run(['which', tool_name], capture_output=True, timeout=5)
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, OSError) as e:
+            print(f"Warning: Could not check for {tool_name}: {e}")
+            return False
+
+    def _safe_popen(self, cmd, **kwargs):
+        """Safely create a subprocess.Popen with proper error handling"""
+        try:
+            # Verify the first command element exists
+            tool = cmd[0]
+            if not self._verify_tool_available(tool):
+                raise FileNotFoundError(f"Required tool not found in PATH: {tool}")
+            return subprocess.Popen(cmd, **kwargs)
+        except (OSError, subprocess.SubprocessError) as e:
+            raise RuntimeError(f"Failed to start process '{cmd[0]}': {e}")
+
     def _dictionary_attack(self, capture_file: str, wordlist: str,
                           bssid: str, essid: str) -> Optional[CrackResult]:
         """Perform dictionary attack using aircrack-ng"""
@@ -99,18 +119,30 @@ class PasswordCracker:
             # Use aircrack-ng for dictionary attack
             cmd = ['aircrack-ng', '-w', wordlist, '-b', bssid, capture_file]
 
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            process = self._safe_popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      universal_newlines=True)
 
             password_found = None
             progress = 0
+            max_wait = 3600  # 1 hour max
+            wait_start = time.time()
 
             while self.cracking and process.poll() is None:
                 time.sleep(0.1)
 
+                # Timeout safety: prevent infinite hang
+                if time.time() - wait_start > max_wait:
+                    print(f"Dictionary attack timed out after {max_wait}s")
+                    process.terminate()
+                    break
+
                 # Check for completion or password found
                 if process.poll() is not None:
-                    output, error = process.communicate()
+                    try:
+                        output, error = process.communicate(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        output, error = process.communicate(timeout=5)
 
                     # Check if password was found
                     if "KEY FOUND" in output:
@@ -189,18 +221,30 @@ class PasswordCracker:
             if wordlist and os.path.exists(wordlist):
                 cmd.append(wordlist)
 
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            process = self._safe_popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      universal_newlines=True)
 
             password_found = None
             progress = 0
+            max_wait = 7200  # 2 hours max
+            wait_start = time.time()
 
             while self.cracking and process.poll() is None:
                 time.sleep(0.5)
 
+                # Timeout safety
+                if time.time() - wait_start > max_wait:
+                    print(f"Hashcat attack timed out after {max_wait}s")
+                    process.terminate()
+                    break
+
                 # Check hashcat output for progress and results
                 if process.poll() is not None:
-                    output, error = process.communicate()
+                    try:
+                        output, error = process.communicate(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        output, error = process.communicate(timeout=5)
 
                     # Check if password was found
                     if "STATUS" in output and "Cracked" in output:
@@ -358,17 +402,28 @@ class PasswordCracker:
             # Run hashcat with mask
             cmd = ['hashcat', '-m', '2500', '-a', '3', hccapx_file, mask]
 
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            process = self._safe_popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      universal_newlines=True)
 
             password_found = None
             progress = 0
+            max_wait = 7200
+            wait_start = time.time()
 
             while self.cracking and process.poll() is None:
                 time.sleep(1)
 
+                if time.time() - wait_start > max_wait:
+                    print(f"Mask attack timed out after {max_wait}s")
+                    process.terminate()
+                    break
+
                 if process.poll() is not None:
-                    output, error = process.communicate()
+                    try:
+                        output, error = process.communicate(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        output, error = process.communicate(timeout=5)
 
                     # Check for found password
                     if "STATUS" in output and "Cracked" in output:
@@ -452,17 +507,28 @@ class PasswordCracker:
             if wordlist and os.path.exists(wordlist):
                 cmd.append(wordlist)
 
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            process = self._safe_popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      universal_newlines=True)
 
             password_found = None
             progress = 0
+            max_wait = 7200
+            wait_start = time.time()
 
             while self.cracking and process.poll() is None:
                 time.sleep(1)
 
+                if time.time() - wait_start > max_wait:
+                    print(f"PMKID cracking timed out after {max_wait}s")
+                    process.terminate()
+                    break
+
                 if process.poll() is not None:
-                    output, error = process.communicate()
+                    try:
+                        output, error = process.communicate(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        output, error = process.communicate(timeout=5)
 
                     # Check for found password
                     if "STATUS" in output and "Cracked" in output:

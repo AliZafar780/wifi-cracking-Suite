@@ -312,8 +312,26 @@ class WiFiCrackingSuite:
             messagebox.showerror("Error", "Please select an interface")
             return
 
+        # Validate interface name
+        if not self._validate_interface_name(interface):
+            return
+
         if not self.monitor_mode and platform.system() == "Linux":
             messagebox.showwarning("Warning", "Monitor mode recommended for full scanning.")
+
+        # Validate scan timeout
+        timeout_str = self.scan_timeout.get()
+        if timeout_str:
+            try:
+                timeout = int(timeout_str)
+                if timeout < 1 or timeout > 3600:
+                    messagebox.showerror("Validation Error",
+                        "Scan timeout must be between 1 and 3600 seconds")
+                    return
+            except ValueError:
+                messagebox.showerror("Validation Error",
+                    "Scan timeout must be a valid number")
+                return
 
         self.is_scanning = True
         self.scan_btn.config(state='disabled')
@@ -338,6 +356,19 @@ class WiFiCrackingSuite:
         thread = threading.Thread(target=self._scan_worker, args=(interface,))
         thread.daemon = True
         thread.start()
+
+    def _validate_interface_name(self, interface):
+        """Validate that interface name is safe and reasonable"""
+        import re
+        if not interface or not interface.strip():
+            messagebox.showerror("Validation Error", "Interface name cannot be empty")
+            return False
+        # Basic safety: only allow alphanumeric, colons, dots, hyphens, underscores
+        if not re.match(r'^[\w\-\.:]+$', interface.strip()):
+            messagebox.showerror("Validation Error",
+                "Interface name contains invalid characters")
+            return False
+        return True
 
     def _scan_worker(self, interface):
         try:
@@ -399,6 +430,22 @@ class WiFiCrackingSuite:
             messagebox.showerror("Error", "Please select a target network")
             return
 
+        # Validate inputs
+        if not self._validate_attack_inputs(attack_type, bssid, essid, channel):
+            return
+
+        # Confirm deauth attacks before proceeding
+        if attack_type == "deauth":
+            confirm = messagebox.askyesno(
+                "Confirm Deauth Attack",
+                f"This will disconnect clients from '{essid}' ({bssid}).\n\n"
+                "This may be illegal without proper authorization.\n"
+                "Only use on networks you own or have explicit permission to test.\n\n"
+                "Continue?"
+            )
+            if not confirm:
+                return
+
         self.is_attacking = True
         self.start_attack_btn.config(state='disabled')
         self.stop_attack_btn.config(state='normal')
@@ -406,6 +453,39 @@ class WiFiCrackingSuite:
         thread = threading.Thread(target=self._attack_worker, args=(attack_type, bssid, essid, channel))
         thread.daemon = True
         thread.start()
+
+    def _validate_attack_inputs(self, attack_type, bssid, essid, channel):
+        """Validate attack inputs for security and correctness"""
+        import re
+
+        # Validate BSSID format (MAC address)
+        if attack_type in ('deauth', 'evil_twin', 'pmkid', 'wps'):
+            bssid_pattern = re.compile(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')
+            if not bssid_pattern.match(bssid.strip()):
+                messagebox.showerror("Validation Error",
+                    "Invalid BSSID format. Expected format: XX:XX:XX:XX:XX:XX")
+                return False
+
+        # Validate ESSID is not empty
+        if attack_type in ('evil_twin',) and not essid.strip():
+            messagebox.showerror("Validation Error",
+                "ESSID cannot be empty for Evil Twin attack")
+            return False
+
+        # Validate channel if provided
+        if channel and channel.strip():
+            try:
+                ch = int(channel)
+                if ch < 1 or ch > 165:
+                    messagebox.showerror("Validation Error",
+                        "Channel must be between 1 and 165")
+                    return False
+            except ValueError:
+                messagebox.showerror("Validation Error",
+                    "Channel must be a valid number")
+                return False
+
+        return True
 
     def _attack_worker(self, attack_type, bssid, essid, channel):
         try:
